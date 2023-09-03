@@ -7,6 +7,7 @@ public class MyBot : IChessBot
 {
     int[] pieceValues = { 0, 100, 300, 300, 500, 900, 0 };
     int maxDepth = 4;
+    int budget = 1000000;
 
     public struct EvalMove
     {
@@ -22,13 +23,20 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         bool isWhite = board.IsWhiteToMove;
+
+        // Determine recursion depth
+        maxDepth = (int)(Math.Log2(budget) / Math.Log2(board.GetLegalMoves().Length));
+        if (board.IsInCheck())
+            maxDepth = Math.Min(maxDepth, 4);
+        maxDepth = Math.Max(maxDepth, 2);
+        Console.WriteLine("Recursion depth: " + maxDepth);
+
         return PickMove(board, timer, isWhite, 0, int.MaxValue).Move;
     }
 
     private int EvaluateBoard(Board board, Timer timer, bool isWhite, int depth, int bestPrev)
     {
         bool boardAfterOwnMove = isWhite != board.IsWhiteToMove;
-        int value = 0;
 
         // Base cases
         if (board.IsInCheckmate())
