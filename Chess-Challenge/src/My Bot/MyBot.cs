@@ -1,13 +1,45 @@
 ﻿using ChessChallenge.API;
-using Microsoft.CodeAnalysis.Operations;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 public class MyBot : IChessBot
 {
-    int[] pieceValues = { 0, 100, 300, 300, 500, 900, 0 };
-    int maxDepth = 4;
-    int budget = 1000000;
+    #region Piece and Square Values
+    int[] pieceValues = { 0, 100, 320, 330, 500, 900, 20000 };
+    // Pawn
+    short[][] squareValues = { new short[]{ 0,  0,  0,  0,  0,  0,  0,  0,
+                                            50, 50, 50, 50, 50, 50, 50, 50,
+                                            10, 10, 20, 30, 30, 20, 10, 10,
+                                             5,  5, 10, 25, 25, 10,  5,  5,
+                                             0,  0,  0, 22, 22,  0,  0,  0,
+                                             5, -5,-10,  0,  0,-10, -5,  5,
+                                             5, 10, 10,-23,-23, 10, 10,  5,
+                                             0,  0,  0,  0,  0,  0,  0,  0},
+        // Knight
+        new short[] { -50,-35,-30,-30,-30,-30,-35,-50,
+                    -40,-20,  0,  0,  0,  0,-20,-40,
+                    -30,  0, 10, 15, 15, 10,  0,-30,
+                    -30,  5, 15, 20, 20, 15,  5,-30,
+                    -30,  0, 15, 20, 20, 15,  0,-30,
+                    -30,  5, 10, 15, 15, 10,  5,-30,
+                    -40,-20,  0,  5,  5,  0,-20,-40,
+                    -50,-35,-30,-30,-30,-30,-35,-50},
+        // Bishop
+        new short[] { -20,-10,-10,-10,-10,-10,-10,-20,
+                    -10,  0,  0,  0,  0,  0,  0,-10,
+                    -10,  0,  5, 10, 10,  5,  0,-10,
+                    -10,  5,  5, 10, 10,  5,  5,-10,
+                    -10,  0, 10, 10, 10, 10,  0,-10,
+                    -10, 10, 10, 10, 10, 10, 10,-10,
+                    -10,  5,  0,  0,  0,  0,  5,-10,
+                    -20,-10,-10,-10,-10,-10,-10,-20},};
+
+    #endregion
+
+    int maxDepth ;
+    //int budget = 1000000;
+    Dictionary<string, int> boardValues;
 
     public struct EvalMove
     {
@@ -20,16 +52,43 @@ public class MyBot : IChessBot
         public int Value;
     }
 
+    public class MoveComp : IComparer<Move>
+    {
+        public static MyBot Bot;
+
+        public int Compare(Move x, Move y)
+        {
+            return 0;
+        }
+    }
+
+    public MyBot()
+    {
+        MoveComp.Bot = this;
+        maxDepth = 4;
+        boardValues = new Dictionary<string, int>();
+    }
+
     public Move Think(Board board, Timer timer)
     {
         bool isWhite = board.IsWhiteToMove;
 
         // Determine recursion depth
-        maxDepth = (int)(Math.Log2(budget) / Math.Log2(board.GetLegalMoves().Length));
+        /*
+        Move[] legalMoves = board.GetLegalMoves();
+        board.MakeMove(legalMoves[0]);
+        int opponentMovesCount = board.GetLegalMoves().Length;
+        board.UndoMove(legalMoves[0]);
+
+        maxDepth = (int)(Math.Log2(budget) / Math.Log2(Math.Max(legalMoves.Length, opponentMovesCount)));
         if (board.IsInCheck())
             maxDepth = Math.Min(maxDepth, 4);
         maxDepth = Math.Max(maxDepth, 2);
-        Console.WriteLine("Recursion depth: " + maxDepth);
+
+        maxDepth = 3; // DEBUG, TODO: REMOVE
+        Console.WriteLine("MyBot | Recursion depth: " + maxDepth);
+        */
+        
 
         return PickMove(board, timer, isWhite, 0, int.MaxValue).Move;
     }
@@ -48,7 +107,7 @@ public class MyBot : IChessBot
         if (depth >= maxDepth)
         {
             // Board evaluation
-            return PieceValue(board, isWhite);
+            return StaticEval(board, isWhite);
         }
 
         // Recursion case
@@ -85,11 +144,12 @@ public class MyBot : IChessBot
         return new EvalMove(movesToPlay[rng.Next(movesToPlay.Count)], bestValue);
     }
 
-    // Evaluation Helper Functions
-    private int PieceValue(Board board, bool isWhite)
+    // Helper Functions
+    private int StaticEval(Board board, bool isWhite)
     {
-        int totalPieceValue = 0;
+        int totalValue = 0;
 
+        // Piece Value
         PieceList[] allPieceLists = board.GetAllPieceLists();
         foreach (PieceList pieceList in allPieceLists)
         {
@@ -98,9 +158,37 @@ public class MyBot : IChessBot
             {
                 pieceListValue += pieceValues[(int)piece.PieceType];
             }
-            totalPieceValue += pieceList.IsWhitePieceList == isWhite ? pieceListValue : -pieceListValue;
+            totalValue += pieceList.IsWhitePieceList == isWhite ? pieceListValue : -pieceListValue;
         }
-        return totalPieceValue;
+
+        // Square Value
+        ulong[] pieceBitboards = { board.GetPieceBitboard(PieceType.Pawn, isWhite),
+            board.GetPieceBitboard(PieceType.Knight, isWhite),
+            board.GetPieceBitboard(PieceType.Bishop, isWhite) };
+
+        for(int i = 0; i < 3; i++)
+        {
+            int len = BitboardHelper.GetNumberOfSetBits(pieceBitboards[i]);
+            for (int j = 0; j < len; j++)
+            {
+                int index = BitboardHelper.ClearAndGetIndexOfLSB(ref pieceBitboards[i]);
+                int convertedIndex = ConvInd(index, isWhite);
+                totalValue += squareValues[i][convertedIndex];
+            }
+        }
+
+        return totalValue;
+    }
+
+    private int ConvInd(int index, bool isWhite)
+    {
+        if (!isWhite)
+            return index;
+
+        int x = index % 8;
+        int y = index / 8;
+        y = 7 - y;
+        return 8 * y + x;
     }
     
 }
