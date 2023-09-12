@@ -27,7 +27,7 @@ namespace ChessChallenge.Example
                     -30,  0, 15, 20, 20, 15,  0,-30,
                     -30,  5, 10, 15, 15, 10,  5,-30,
                     -40,-20,  0,  5,  5,  0,-20,-40,
-                    -50,-35,-30,-30,-30,-30,-35,-50},
+                    -50,-35,-30,-30,-30,-30,-35,-50}/*,
         // Bishop
         new short[] { -20,-10,-10,-10,-10,-10,-10,-20,
                     -10,  0,  0,  0,  0,  0,  0,-10,
@@ -36,13 +36,12 @@ namespace ChessChallenge.Example
                     -10,  0, 10, 10, 10, 10,  0,-10,
                     -10, 10, 10, 10, 10, 10, 10,-10,
                     -10,  5,  0,  0,  0,  0,  5,-10,
-                    -20,-10,-10,-10,-10,-10,-10,-20},};
+                    -20,-10,-10,-10,-10,-10,-10,-20},*/};
 
         #endregion
 
         int maxDepth;
         public bool isWhite;
-        //int budget = 1000000;
         MoveComp moveComp;
 
         public struct EvalMove
@@ -78,7 +77,7 @@ namespace ChessChallenge.Example
         public EvilBot()
         {
             MoveComp.Bot = this;
-            maxDepth = 3;
+            maxDepth = 4;
             moveComp = new MoveComp();
         }
 
@@ -196,16 +195,20 @@ namespace ChessChallenge.Example
             // Square Value
             ulong[] pieceBitboards = { board.GetPieceBitboard(PieceType.Pawn, isWhite),
             board.GetPieceBitboard(PieceType.Knight, isWhite),
-            board.GetPieceBitboard(PieceType.Bishop, isWhite) };
+            //board.GetPieceBitboard(PieceType.Bishop, isWhite),
 
-            for (int i = 0; i < 3; i++)
+            board.GetPieceBitboard(PieceType.Pawn, !isWhite),
+            board.GetPieceBitboard(PieceType.Knight, !isWhite)
+            /*board.GetPieceBitboard(PieceType.Bishop, !isWhite)*/};
+
+            for (int i = 0; i < 4; i++)
             {
                 int len = BitboardHelper.GetNumberOfSetBits(pieceBitboards[i]);
                 for (int j = 0; j < len; j++)
                 {
                     int index = BitboardHelper.ClearAndGetIndexOfLSB(ref pieceBitboards[i]);
-                    int convertedIndex = ConvInd(index, isWhite);
-                    totalValue += squareValues[i][convertedIndex];
+                    int convertedIndex = ConvInd(index, isWhite == i < 2);
+                    totalValue += i < 2 ? squareValues[i % 2][convertedIndex] : -squareValues[i % 2][convertedIndex];
                 }
             }
 
