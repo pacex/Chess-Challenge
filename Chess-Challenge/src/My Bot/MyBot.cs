@@ -6,9 +6,9 @@ using System.Collections.Generic;
 public class MyBot : IChessBot
 {
     #region Piece and Square Values
-    int[] pieceValues = { 0, 100, 320, 330, 500, 900, 20000 };
+    static int[] pieceValues = { 0, 100, 320, 330, 500, 900, 20000 };
     // Pawn
-    short[][] squareValues = { new short[]{ 0,  0,  0,  0,  0,  0,  0,  0,
+    static short[][] squareValues = { new short[]{ 0,  0,  0,  0,  0,  0,  0,  0,
                                             50, 50, 50, 50, 50, 50, 50, 50,
                                             10, 10, 20, 30, 30, 20, 10, 10,
                                              5,  5, 10, 25, 25, 10,  5,  5,
@@ -37,9 +37,10 @@ public class MyBot : IChessBot
 
     #endregion
 
-    int maxDepth ;
+    int maxDepth;
+    public bool isWhite;
     //int budget = 1000000;
-    Dictionary<string, int> boardValues;
+    MoveComp moveComp;
 
     public struct EvalMove
     {
@@ -55,23 +56,32 @@ public class MyBot : IChessBot
     public class MoveComp : IComparer<Move>
     {
         public static MyBot Bot;
+        public static Board Board;
 
         public int Compare(Move x, Move y)
-        {
-            return 0;
+        {     
+            Board.MakeMove(x);
+            int v1 = MyBot.StaticEval(Board, Bot.isWhite);
+            Board.UndoMove(x);
+
+            Board.MakeMove(y);
+            int v2 = MyBot.StaticEval(Board, Bot.isWhite);
+            Board.UndoMove(y);
+            
+            return v1.CompareTo(v2);
         }
     }
 
     public MyBot()
     {
         MoveComp.Bot = this;
-        maxDepth = 4;
-        boardValues = new Dictionary<string, int>();
+        maxDepth = 3;
+        moveComp = new MoveComp();
     }
 
     public Move Think(Board board, Timer timer)
     {
-        bool isWhite = board.IsWhiteToMove;
+        isWhite = board.IsWhiteToMove;
 
         // Determine recursion depth
         /*
@@ -89,26 +99,21 @@ public class MyBot : IChessBot
         Console.WriteLine("MyBot | Recursion depth: " + maxDepth);
         */
         
-
         return PickMove(board, timer, isWhite, 0, int.MaxValue).Move;
     }
 
     private int EvaluateBoard(Board board, Timer timer, bool isWhite, int depth, int bestPrev)
     {
-        bool boardAfterOwnMove = isWhite != board.IsWhiteToMove;
 
         // Base cases
         if (board.IsInCheckmate())
-            return boardAfterOwnMove ? int.MaxValue : int.MinValue;
+            return isWhite != board.IsWhiteToMove ? int.MaxValue : int.MinValue;
         
         if (board.IsDraw()) 
             return 0;
 
         if (depth >= maxDepth)
-        {
-            // Board evaluation
             return StaticEval(board, isWhite);
-        }
 
         // Recursion case
         return PickMove(board, timer, isWhite, depth, bestPrev).Value;
@@ -116,10 +121,18 @@ public class MyBot : IChessBot
 
     private EvalMove PickMove(Board board, Timer timer, bool isWhite, int depth, int bestPrev) {
 
-        Move[] allMoves = board.GetLegalMoves();
-        List<Move> movesToPlay = new List<Move>(allMoves);
+        List<Move> allMoves = new List<Move>(board.GetLegalMoves());
         bool ownMove = isWhite == board.IsWhiteToMove;
+        
+        if (depth < maxDepth - 1)
+        {
+            MoveComp.Board = board;
+            allMoves.Sort(moveComp);
+            if (ownMove)
+                allMoves.Reverse();
+        }
 
+        List<Move> movesToPlay = new List<Move>(allMoves);
         int bestValue = ownMove ? int.MinValue : int.MaxValue;
 
         foreach (Move move in allMoves)
@@ -134,20 +147,28 @@ public class MyBot : IChessBot
                 movesToPlay.Add(move);
             }
             board.UndoMove(move);
-            if (ownMove ? bestValue > bestPrev : bestValue < bestPrev)
+            if (ownMove ? bestValue >= bestPrev : bestValue <= bestPrev)
+            {
+                bestValue = ownMove ? int.MaxValue : int.MinValue;
                 break;
+            }
+            
         }
 
         // Pick random move from list of best moves (equal evaluation)
-        Random rng = new Random();
-
-        return new EvalMove(movesToPlay[rng.Next(movesToPlay.Count)], bestValue);
+        return new EvalMove(movesToPlay[new Random().Next(movesToPlay.Count)], bestValue);
     }
 
     // Helper Functions
-    private int StaticEval(Board board, bool isWhite)
+    public static int StaticEval(Board board, bool isWhite)
     {
         int totalValue = 0;
+
+        if (board.IsInCheckmate())
+            return (isWhite == !board.IsWhiteToMove) ? int.MaxValue : int.MinValue;
+
+        else if (board.IsDraw())
+            return 0;
 
         // Piece Value
         PieceList[] allPieceLists = board.GetAllPieceLists();
@@ -180,7 +201,7 @@ public class MyBot : IChessBot
         return totalValue;
     }
 
-    private int ConvInd(int index, bool isWhite)
+    private static int ConvInd(int index, bool isWhite)
     {
         if (!isWhite)
             return index;
