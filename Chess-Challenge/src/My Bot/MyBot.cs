@@ -84,20 +84,12 @@ public class MyBot : IChessBot
         isWhite = board.IsWhiteToMove;
 
         // Determine recursion depth
-        /*
-        Move[] legalMoves = board.GetLegalMoves();
-        board.MakeMove(legalMoves[0]);
-        int opponentMovesCount = board.GetLegalMoves().Length;
-        board.UndoMove(legalMoves[0]);
-
-        maxDepth = (int)(Math.Log2(budget) / Math.Log2(Math.Max(legalMoves.Length, opponentMovesCount)));
-        if (board.IsInCheck())
-            maxDepth = Math.Min(maxDepth, 4);
-        maxDepth = Math.Max(maxDepth, 2);
-
-        maxDepth = 3; // DEBUG, TODO: REMOVE
-        Console.WriteLine("MyBot | Recursion depth: " + maxDepth);
-        */
+        if (timer.MillisecondsRemaining < 2000)
+            maxDepth = 3;
+        else if (timer.MillisecondsRemaining < 20000)
+            maxDepth = 4;
+        else
+            maxDepth = 5;
         
         return PickMove(board, timer, isWhite, 0, int.MaxValue).Move;
     }
@@ -172,6 +164,8 @@ public class MyBot : IChessBot
 
         // Piece Value
         PieceList[] allPieceLists = board.GetAllPieceLists();
+        int ownPieceValue = 0;
+        int opponentPieceValue = 0;
         foreach (PieceList pieceList in allPieceLists)
         {
             int pieceListValue = 0;
@@ -179,8 +173,14 @@ public class MyBot : IChessBot
             {
                 pieceListValue += pieceValues[(int)piece.PieceType];
             }
-            totalValue += pieceList.IsWhitePieceList == isWhite ? pieceListValue : -pieceListValue;
+
+            if (pieceList.IsWhitePieceList == isWhite)
+                ownPieceValue += pieceListValue;
+            else
+                opponentPieceValue += pieceListValue;
         }
+
+        totalValue += ownPieceValue - opponentPieceValue;
 
         // Square Value
         ulong[] pieceBitboards = { board.GetPieceBitboard(PieceType.Pawn, isWhite),
@@ -202,6 +202,15 @@ public class MyBot : IChessBot
             }
         }
 
+        // Opponent King Position
+        if (opponentPieceValue <= pieceValues[(int)PieceType.King])
+        {
+            int ownKingIndex = board.GetKingSquare(isWhite).Index;
+            int opponentKingIndex = board.GetKingSquare(!isWhite).Index;
+            totalValue += (int)(Distance(opponentKingIndex, 3.5F, 3.5F) * 10.0F); // Maximize opponent's king's distance to center of board
+            totalValue += (int)(7.0f - Distance(ownKingIndex, opponentKingIndex % 8, opponentKingIndex / 8)); // Move own king close to opponents king
+        }
+
         return totalValue;
     }
 
@@ -214,6 +223,13 @@ public class MyBot : IChessBot
         int y = index / 8;
         y = 7 - y;
         return 8 * y + x;
+    }
+
+    private static float Distance(int index, float x, float y)
+    {
+        float a = (index % 8) - x;
+        float b = (index / 8) - y;
+        return a + b;
     }
     
 }

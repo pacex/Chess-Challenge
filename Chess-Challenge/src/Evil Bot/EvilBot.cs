@@ -77,7 +77,7 @@ namespace ChessChallenge.Example
         public EvilBot()
         {
             MoveComp.Bot = this;
-            maxDepth = 4;
+            maxDepth = 3;
             moveComp = new MoveComp();
         }
 
@@ -189,6 +189,7 @@ namespace ChessChallenge.Example
                 {
                     pieceListValue += pieceValues[(int)piece.PieceType];
                 }
+
                 totalValue += pieceList.IsWhitePieceList == isWhite ? pieceListValue : -pieceListValue;
             }
 
